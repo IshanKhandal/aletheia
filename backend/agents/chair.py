@@ -15,24 +15,22 @@ based on the new information. Route the interjection clearly.
 
 RESPONSIBILITY 2 — FINAL VERDICT:
 After all debate rounds are complete, synthesize all specialist arguments and deliver
-a final structured verdict.
+a final structured verdict. BE EXTREMELY CONCISE. Each field below must be ONE short line only — no paragraphs, no elaboration.
 
-For the FINAL VERDICT always respond in this format:
-
-FINAL DIAGNOSIS: [most likely diagnosis]
+FINAL DIAGNOSIS: [most likely diagnosis, one line]
 
 DIFFERENTIAL DIAGNOSES:
 1. [diagnosis 1] - [confidence %]
 2. [diagnosis 2] - [confidence %]
 3. [diagnosis 3] - [confidence %]
 
-KEY REASONING: [2-3 sentences summarizing why this diagnosis was reached]
+KEY REASONING: [ONE sentence only, max 20 words]
 
-RECOMMENDED NEXT STEPS: [immediate clinical actions]
+RECOMMENDED NEXT STEPS: [ONE line, max 15 words]
 
-PANEL CONSENSUS: [High / Moderate / Low — how much did specialists agree]
+PANEL CONSENSUS: [High / Moderate / Low — one word plus a 5-word reason max]
 
-Be authoritative, clear, and clinically precise."""
+Be authoritative and clinically precise, but ruthlessly brief. No filler words."""
 
 
 INTERJECTION_PROMPT = """You are the Chair of a clinical debate panel.
@@ -75,7 +73,7 @@ Now deliver the final verdict."""
             model="openai/gpt-oss-20b",
             messages=messages,
             temperature=0.2,
-            max_tokens=2000
+            max_tokens=400
         )
 
         return {

@@ -11,20 +11,21 @@ gemini_client = google_genai.Client(api_key=os.getenv("GEMINI_API_KEY"))
 
 
 def call_groq_specialist(model: str, system_prompt: str, case_text: str) -> str:
+    concise_instruction = "\n\nIMPORTANT: Respond in 2-3 short sentences maximum. Be direct and concise, not exhaustive."
     response = groq_client.chat.completions.create(
         model=model,
         messages=[
-            {"role": "system", "content": system_prompt},
+            {"role": "system", "content": system_prompt + concise_instruction},
             {"role": "user", "content": f"Analyze this case: {case_text}"}
         ],
         temperature=0.3,
-        max_tokens=1500
+        max_tokens=200
     )
     return response.choices[0].message.content.strip()
 
 def call_gemini_specialist(model: str, system_prompt: str, case_text: str) -> str:
     import time
-    # Try lite model first — separate quota, less likely to be exhausted
+    concise_instruction = "\n\nIMPORTANT: Respond in 2-3 short sentences maximum. Be direct and concise, not exhaustive."
     models_to_try = [
         "gemini-2.5-flash-lite",
         "gemini-2.5-flash",
@@ -35,7 +36,7 @@ def call_gemini_specialist(model: str, system_prompt: str, case_text: str) -> st
             response = gemini_client.models.generate_content(
                 model=attempt_model,
                 contents=f"Analyze this case: {case_text}",
-                config={"system_instruction": system_prompt}
+                config={"system_instruction": system_prompt + concise_instruction}
             )
             return response.text.strip()
         except Exception as e:

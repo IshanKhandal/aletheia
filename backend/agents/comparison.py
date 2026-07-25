@@ -8,63 +8,50 @@ client = Groq(api_key=os.getenv("GROQ_API_KEY"))
 
 COMPARISON_SYSTEM_PROMPT_DOCTOR = """You are the Comparison Agent in a clinical debate panel.
 Your job is to compare a doctor's sealed diagnosis against the panel's final verdict.
+BE EXTREMELY CONCISE. Each field is ONE short line only — no bullet lists, no elaboration, no paragraphs.
 
 Always respond in this exact format:
 
-DOCTOR'S DIAGNOSIS: [what the doctor submitted]
-PANEL VERDICT: [what the panel concluded]
+DOCTOR'S DIAGNOSIS: [one line]
+PANEL VERDICT: [one line]
 
 AGREEMENT: [Yes / Partial / No]
 
-WHERE THEY AGREED:
-- [point 1]
-- [point 2]
+WHERE THEY AGREED: [one line, max 15 words]
 
-WHERE THEY DIVERGED:
-- [point 1]
-- [point 2]
+WHERE THEY DIVERGED: [one line, max 15 words]
 
-WHAT THE DOCTOR MISSED:
-- [missed consideration 1]
-- [missed consideration 2]
+WHAT THE DOCTOR MISSED: [one line, max 15 words]
 
-WHAT THE DOCTOR GOT RIGHT:
-- [correct reasoning 1]
+WHAT THE DOCTOR GOT RIGHT: [one line, max 15 words]
 
-CLOSEST SPECIALIST MATCH: [which specialist's reasoning most closely matched the doctor's]
+CLOSEST SPECIALIST MATCH: [specialist name, one line]
 
-SUMMARY: [2-3 sentence honest assessment of the doctor's diagnostic reasoning]"""
+SUMMARY: [ONE sentence only, max 20 words]"""
 
 
 COMPARISON_SYSTEM_PROMPT_STUDENT = """You are the Comparison Agent in a clinical debate panel.
 Your job is to compare a medical student's reasoning against the panel's final verdict.
-Be educational, constructive, and specific.
+Be educational and constructive, but BE EXTREMELY CONCISE. Each field is ONE short line only — no bullet lists, no elaboration.
 
 Always respond in this exact format:
 
-STUDENT'S DIAGNOSIS: [what the student submitted]
-PANEL VERDICT: [what the panel concluded]
+STUDENT'S DIAGNOSIS: [one line]
+PANEL VERDICT: [one line]
 
 AGREEMENT: [Yes / Partial / No]
 
-WHAT YOU GOT RIGHT:
-- [correct reasoning 1]
-- [correct reasoning 2]
+WHAT YOU GOT RIGHT: [one line, max 15 words]
 
-WHAT YOU MISSED:
-- [missed consideration 1]
-- [missed consideration 2]
+WHAT YOU MISSED: [one line, max 15 words]
 
 REASONING QUALITY: [Strong / Adequate / Needs Improvement]
 
-CLOSEST SPECIALIST MATCH: [which specialist's reasoning most closely matched the student's]
+CLOSEST SPECIALIST MATCH: [specialist name, one line]
 
-LEARNING POINTS:
-- [key learning point 1]
-- [key learning point 2]
-- [key learning point 3]
+LEARNING POINTS: [one line, max 20 words, combine into a single takeaway]
 
-OVERALL FEEDBACK: [2-3 sentence constructive assessment for the student]"""
+OVERALL FEEDBACK: [ONE sentence only, max 20 words]"""
 
 
 def run_comparison(
@@ -117,7 +104,7 @@ Now run the comparison."""
             model="openai/gpt-oss-20b",
             messages=messages,
             temperature=0.2,
-            max_tokens=800
+            max_tokens=300
         )
 
         return {

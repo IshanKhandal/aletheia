@@ -30,35 +30,10 @@ Use only the exact specialist names from the list above."""
 
 def check_api_diversity(selected: list) -> list:
     """
-    Ensures no more than 2 specialists from the same API.
-    Swaps out duplicates if needed.
+    No longer needed as an API-balancing constraint since all specialists
+    now run on the same API. Kept as a pass-through for compatibility.
     """
-    api_counts = {}
-    final_selected = []
-    swapped = []
-
-    for name in selected:
-        api = SPECIALIST_PROMPTS[name]["api"]
-        api_counts[api] = api_counts.get(api, 0) + 1
-        if api_counts[api] <= 2:
-            final_selected.append(name)
-        else:
-            swapped.append(name)
-
-    # If we had to remove any, fill from remaining specialists
-    if swapped:
-        all_specialists = list(SPECIALIST_PROMPTS.keys())
-        for specialist in all_specialists:
-            if specialist not in final_selected and len(final_selected) < 4:
-                api = SPECIALIST_PROMPTS[specialist]["api"]
-                current_count = sum(
-                    1 for s in final_selected
-                    if SPECIALIST_PROMPTS[s]["api"] == api
-                )
-                if current_count < 2:
-                    final_selected.append(specialist)
-
-    return final_selected[:4]
+    return selected[:4]
 
 
 def run_selector(case_text: str, manual_specialists: list = None) -> dict:
@@ -79,19 +54,18 @@ def run_selector(case_text: str, manual_specialists: list = None) -> dict:
             }
 
     # Auto selection path
+    # Auto selection path
     try:
-        from google import genai as google_genai
-        import os
-        gemini_client = google_genai.Client(api_key=os.getenv("GEMINI_API_KEY"))
-        gemini_response = gemini_client.models.generate_content(
-            model="gemini-2.5-flash-lite",
-            contents=f"Select specialists for this case: {case_text}",
-            config={
-                "system_instruction": SELECTOR_SYSTEM_PROMPT,
-                "response_mime_type": "application/json"
-            }
+        response = client.chat.completions.create(
+            model="openai/gpt-oss-20b",
+            messages=[
+                {"role": "system", "content": SELECTOR_SYSTEM_PROMPT},
+                {"role": "user", "content": f"Select specialists for this case: {case_text}"}
+            ],
+            temperature=0.3,
+            response_format={"type": "json_object"}
         )
-        raw = gemini_response.text.strip()
+        raw = response.choices[0].message.content.strip()
         result = json.loads(raw)
 
         selected = result.get("selected", [])
