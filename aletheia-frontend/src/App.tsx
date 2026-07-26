@@ -77,7 +77,7 @@ const App: React.FC = () => {
     setPatientFeed(prev => [...prev, { who: 'user', text: question }]);
 
     try {
-      const res = await fetch('http://localhost:8000/patient/respond', {
+      const res = await fetch('https://aletheia-0xrj.onrender.com/patient/respond', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -103,7 +103,7 @@ const App: React.FC = () => {
     setComparisonText('');
     setShowTranscript(true);
 
-    const ws = new WebSocket('ws://localhost:8000/debate/stream');
+    const ws = new WebSocket('wss://aletheia-0xrj.onrender.com/debate/stream');
     wsRef.current = ws;
 
     ws.onopen = () => {
@@ -176,7 +176,7 @@ const App: React.FC = () => {
     setInterjectInput('');
     setDebateFeed(prev => [...prev, { who: 'user', text: input }]);
 
-    fetch('http://localhost:8000/debate/interject', {
+    fetch('https://aletheia-0xrj.onrender.com/debate/interject', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
