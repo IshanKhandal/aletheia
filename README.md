@@ -2,6 +2,10 @@
 
 **Aletheia** (ἀλήθεια — *the uncovering of truth*) is a real-time, multi-agent AI clinical reasoning platform. It simulates an adversarial multidisciplinary medical board where specialized AI agents debate complex patient cases, challenge each other's diagnostic hypotheses, and reach a consensus—all before unsealing the user's initial diagnosis for direct comparison.
 
+![Live Demo](https://img.shields.io/badge/Live%20Demo-Vercel-000000?style=for-the-badge&logo=vercel&logoColor=white)](https://aletheia-bkxy.vercel.app)
+[![Backend API](https://img.shields.io/badge/Backend-Render-46E3B7?style=for-the-badge&logo=render&logoColor=white)](https://aletheia-0xrj.onrender.com)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg?style=for-the-badge)](https://opensource.org/licenses/MIT)
+
 ---
 
 ## ✨ Key Features
