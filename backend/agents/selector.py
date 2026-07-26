@@ -21,7 +21,7 @@ Choose from this list:
 Rules:
 1. Pick exactly 4 specialists
 2. Choose based on the most likely diagnoses for the case
-3. Respond ONLY with valid JSON in this exact format, nothing else:
+3. Respond ONLY with valid JSON in this exact format, nothing else, no markdown code fences, no explanation:
 {{
     "selected": ["specialist1", "specialist2", "specialist3", "specialist4"]
 }}
@@ -54,18 +54,24 @@ def run_selector(case_text: str, manual_specialists: list = None) -> dict:
             }
 
     # Auto selection path
-    # Auto selection path
     try:
         response = client.chat.completions.create(
             model="openai/gpt-oss-20b",
             messages=[
                 {"role": "system", "content": SELECTOR_SYSTEM_PROMPT},
-                {"role": "user", "content": f"Select specialists for this case: {case_text}"}
+                {"role": "user", "content": f"Select specialists for this case: {case_text}\n\nRespond with ONLY the JSON object, no other text, no markdown formatting."}
             ],
-            temperature=0.3,
-            response_format={"type": "json_object"}
+            temperature=0.1
         )
         raw = response.choices[0].message.content.strip()
+
+        # Strip markdown code fences if the model added them anyway
+        if raw.startswith("```"):
+            raw = raw.strip("`")
+            if raw.startswith("json"):
+                raw = raw[4:]
+            raw = raw.strip()
+
         result = json.loads(raw)
 
         selected = result.get("selected", [])

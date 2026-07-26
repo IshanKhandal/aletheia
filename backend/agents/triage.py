@@ -1,7 +1,7 @@
 import os
+import json
 from groq import Groq
 from dotenv import load_dotenv
-import json
 
 load_dotenv()
 
@@ -27,7 +27,7 @@ def run_triage(case_text: str) -> dict:
     """
     try:
         response = client.chat.completions.create(
-            model="openai/gpt-oss-20b",
+            model="llama-3.3-70b-versatile",  # FIXED: Valid Groq model ID
             messages=[
                 {"role": "system", "content": TRIAGE_SYSTEM_PROMPT},
                 {"role": "user", "content": f"Assess this case: {case_text}"}
@@ -38,7 +38,10 @@ def run_triage(case_text: str) -> dict:
         )
 
         raw = response.choices[0].message.content.strip()
-        result = json.loads(raw)
+
+        # FIXED: Remove markdown formatting if the model wraps JSON in code fences
+        cleaned_raw = raw.replace("```json", "").replace("```", "").strip()
+        result = json.loads(cleaned_raw)
 
         # Validate the response has required fields
         if "severity" not in result or "reason" not in result:
@@ -50,17 +53,19 @@ def run_triage(case_text: str) -> dict:
 
         return result
 
-    except json.JSONDecodeError:
-        # If JSON parsing fails return URGENT as safe default
+    except json.JSONDecodeError as e:
+        print(f"❌ [TRIAGE JSON ERROR]: {e}")
         return {
             "severity": "URGENT",
             "reason": "Triage assessment unavailable — defaulting to URGENT for safety"
         }
 
     except Exception as e:
+        # Added console output to print the exact exception details if it fails again
+        print(f"❌ [TRIAGE API ERROR]: {type(e).__name__} -> {e}")
         return {
             "severity": "URGENT",
-            "reason": f"Triage service error — defaulting to URGENT for safety"
+            "reason": "Triage service error — defaulting to URGENT for safety"
         }
 
 

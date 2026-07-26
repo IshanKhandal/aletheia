@@ -1,0 +1,357 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Aletheia — Diagnostic Comparison Analytics</title>
+  <!-- Chart.js for Minimalist Visuals -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <style>
+    :root {
+      --bg: #0b0c10;
+      --card-bg: rgba(22, 27, 34, 0.75);
+      --border: rgba(255, 255, 255, 0.1);
+      --accent-blue: #3b82f6;
+      --accent-purple: #8b5cf6;
+      --text-main: #f3f4f6;
+      --text-muted: #9ca3af;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+
+    body {
+      background-color: var(--bg);
+      color: var(--text-main);
+      overflow-x: hidden;
+      min-height: 100vh;
+      position: relative;
+    }
+
+    /* Interactive Background Canvas for Particle Effect */
+    #particle-canvas {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      z-index: 0;
+      pointer-events: none;
+    }
+
+    .container {
+      position: relative;
+      z-index: 1;
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 40px 24px;
+      display: flex;
+      flex-direction: column;
+      gap: 32px;
+    }
+
+    header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      border-bottom: 1px solid var(--border);
+      padding-bottom: 20px;
+    }
+
+    .logo {
+      font-size: 22px;
+      font-weight: 700;
+      letter-spacing: 0.1em;
+      background: linear-gradient(90deg, var(--accent-blue), var(--accent-purple));
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    .badge {
+      padding: 6px 14px;
+      border-radius: 20px;
+      background: rgba(59, 130, 246, 0.15);
+      border: 1px solid var(--accent-blue);
+      color: #60a5fa;
+      font-size: 12px;
+      font-weight: 600;
+    }
+
+    /* Comparison Head-to-Head Cards */
+    .comparison-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 24px;
+    }
+
+    .card {
+      background: var(--card-bg);
+      backdrop-filter: blur(12px);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 24px;
+      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+    }
+
+    .card h3 {
+      font-size: 14px;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--text-muted);
+      margin-bottom: 12px;
+    }
+
+    .card .dx-title {
+      font-size: 22px;
+      font-weight: 700;
+      color: var(--text-main);
+    }
+
+    /* Metrics & Visual Charts Row */
+    .visuals-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 24px;
+    }
+
+    .chart-box {
+      height: 300px;
+      position: relative;
+    }
+
+    /* Comparison Table */
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 12px;
+    }
+
+    th, td {
+      padding: 12px 16px;
+      text-align: left;
+      border-bottom: 1px solid var(--border);
+      font-size: 14px;
+    }
+
+    th {
+      color: var(--text-muted);
+      font-weight: 600;
+      text-transform: uppercase;
+      font-size: 11px;
+    }
+
+    .match-high { color: #10b981; font-weight: 600; }
+    .match-partial { color: #f59e0b; font-weight: 600; }
+  </style>
+</head>
+<body>
+
+  <!-- Background Particle Canvas -->
+  <canvas id="particle-canvas"></canvas>
+
+  <div class="container">
+    <header>
+      <div class="logo">ALETHEIA // DIAGNOSTIC COMPARISON</div>
+      <div class="badge">CONSENSUS VERDICT REPORT</div>
+    </header>
+
+    <!-- Head to Head Section -->
+    <div class="comparison-grid">
+      <div class="card" style="border-left: 4px solid var(--accent-purple);">
+        <h3>Sealed User Diagnosis</h3>
+        <div class="dx-title" id="user-dx-display">Loading...</div>
+      </div>
+      <div class="card" style="border-left: 4px solid var(--accent-blue);">
+        <h3>Panel Consensus Diagnosis</h3>
+        <div class="dx-title" id="panel-dx-display">Loading...</div>
+      </div>
+    </div>
+
+    <!-- Charts Row -->
+    <div class="visuals-grid">
+      <!-- LINE GRAPH CARD -->
+      <div class="card">
+        <h3>Diagnostic Progression (Line Graph)</h3>
+        <div class="chart-box">
+          <canvas id="lineChart"></canvas>
+        </div>
+      </div>
+      <div class="card">
+        <h3>Feature Match & Sensitivity Score</h3>
+        <div class="chart-box">
+          <canvas id="radarChart"></canvas>
+        </div>
+      </div>
+    </div>
+
+    <!-- Key Findings Matrix Table -->
+    <div class="card">
+      <h3>Clinical Feature Alignment Table</h3>
+      <table>
+        <thead>
+          <tr>
+            <th>Clinical Evidence / Symptom</th>
+            <th>Sealed Diagnosis Alignment</th>
+            <th>Panel Verdict Alignment</th>
+            <th>Status</th>
+          </tr>
+        </thead>
+        <tbody id="findings-table-body">
+          <!-- Populated dynamically -->
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <script>
+    // === 1. PARTICLE ANIMATION ENGINE ===
+    const canvas = document.getElementById('particle-canvas');
+    const ctx = canvas.getContext('2d');
+    let particles = [];
+
+    function resizeCanvas() {
+      canvas.width = window.innerWidth;
+      canvas.height = window.innerHeight;
+    }
+    window.addEventListener('resize', resizeCanvas);
+    resizeCanvas();
+
+    class Particle {
+      constructor() {
+        this.x = Math.random() * canvas.width;
+        this.y = Math.random() * canvas.height;
+        this.size = Math.random() * 2 + 0.5;
+        this.speedX = (Math.random() - 0.5) * 0.6;
+        this.speedY = (Math.random() - 0.5) * 0.6;
+        this.opacity = Math.random() * 0.5 + 0.2;
+      }
+      update() {
+        this.x += this.speedX;
+        this.y += this.speedY;
+        if (this.x < 0 || this.x > canvas.width) this.speedX *= -1;
+        if (this.y < 0 || this.y > canvas.height) this.speedY *= -1;
+      }
+      draw() {
+        ctx.fillStyle = `rgba(96, 165, 250, ${this.opacity})`;
+        ctx.beginPath();
+        ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    }
+
+    for (let i = 0; i < 70; i++) particles.push(new Particle());
+
+    function animateParticles() {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      particles.forEach(p => { p.update(); p.draw(); });
+      requestAnimationFrame(animateParticles);
+    }
+    animateParticles();
+
+    // === 2. POPULATE DATA & RENDER LINE GRAPH ===
+    const rawData = localStorage.getItem('aletheia_analytics_data');
+    if (rawData) {
+      const data = JSON.parse(rawData);
+
+      document.getElementById('user-dx-display').innerText = data.sealedDx || 'Not Specified';
+      document.getElementById('panel-dx-display').innerText = data.verdictText ? data.verdictText.split('\n')[0] : 'Panel Consensus Formulated';
+
+      // Line Chart Canvas & Gradients
+      const lineCanvas = document.getElementById('lineChart');
+      const lineCtx = lineCanvas.getContext('2d');
+
+      const blueGradient = lineCtx.createLinearGradient(0, 0, 0, 300);
+      blueGradient.addColorStop(0, 'rgba(59, 130, 246, 0.4)');
+      blueGradient.addColorStop(1, 'rgba(59, 130, 246, 0.0)');
+
+      const purpleGradient = lineCtx.createLinearGradient(0, 0, 0, 300);
+      purpleGradient.addColorStop(0, 'rgba(139, 92, 246, 0.4)');
+      purpleGradient.addColorStop(1, 'rgba(139, 92, 246, 0.0)');
+
+      // Smooth Line Graph: Tracking Probabilities Across Debate Stages
+      new Chart(lineCtx, {
+        type: 'line',
+        data: {
+          labels: ['Initial Triage', 'Round 1 (Cardiology)', 'Round 2 (Nephro/Surgeon)', 'Final Verdict'],
+          datasets: [
+            {
+              label: 'Panel Primary Dx %',
+              data: [35, 60, 80, 92],
+              borderColor: '#3b82f6',
+              backgroundColor: blueGradient,
+              fill: true,
+              tension: 0.4, // Smooth curve
+              pointBackgroundColor: '#3b82f6',
+              pointRadius: 5
+            },
+            {
+              label: 'Sealed User Dx %',
+              data: [40, 55, 65, 70],
+              borderColor: '#8b5cf6',
+              backgroundColor: purpleGradient,
+              fill: true,
+              tension: 0.4, // Smooth curve
+              pointBackgroundColor: '#8b5cf6',
+              pointRadius: 5
+            }
+          ]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            legend: { labels: { color: '#f3f4f6', font: { size: 12 } } }
+          },
+          scales: {
+            x: { grid: { color: 'rgba(255, 255, 255, 0.05)' }, ticks: { color: '#9ca3af' } },
+            y: { beginAtZero: true, max: 100, grid: { color: 'rgba(255, 255, 255, 0.05)' }, ticks: { color: '#9ca3af' } }
+          }
+        }
+      });
+
+      // Radar Chart: Diagnostic Criteria Alignment
+      new Chart(document.getElementById('radarChart'), {
+        type: 'radar',
+        data: {
+          labels: ['Vital Discrepancies', 'Symptom Onset', 'Physical Exam', 'Lab/Imaging', 'Risk Profile'],
+          datasets: [
+            {
+              label: 'Panel Diagnosis',
+              data: [90, 85, 95, 80, 90],
+              borderColor: '#3b82f6',
+              backgroundColor: 'rgba(59, 130, 246, 0.2)',
+            },
+            {
+              label: 'User Diagnosis',
+              data: [75, 80, 70, 85, 60],
+              borderColor: '#8b5cf6',
+              backgroundColor: 'rgba(139, 92, 246, 0.2)',
+            }
+          ]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          scales: { r: { angleLines: { color: 'rgba(255,255,255,0.1)' }, grid: { color: 'rgba(255,255,255,0.1)' } } }
+        }
+      });
+
+      // Populate Table
+      const tableBody = document.getElementById('findings-table-body');
+      const sampleFindings = [
+        { feature: 'Inter-arm Blood Pressure Discrepancy', user: 'Not Accounted', panel: 'Primary Key Indicator', status: 'High Variance' },
+        { feature: 'Sudden Onset Tearing Pain', user: 'Supported', panel: 'Supported', status: 'Aligned' },
+        { feature: 'New Diastolic Murmur', user: 'Partially Accounted', panel: 'Aortic Regurgitation Etiology', status: 'Aligned' }
+      ];
+
+      tableBody.innerHTML = sampleFindings.map(f => `
+        <tr>
+          <td><strong>${f.feature}</strong></td>
+          <td>${f.user}</td>
+          <td>${f.panel}</td>
+          <td class="${f.status === 'Aligned' ? 'match-high' : 'match-partial'}">${f.status}</td>
+        </tr>
+      `).join('');
+    }
+  </script>
+</body>
+</html>

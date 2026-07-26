@@ -31,6 +31,51 @@ class CaseSubmission(BaseModel):
     mode: str = "doctor"
     manual_specialists: Optional[List[str]] = None
 
+class PatientQueryRequest(BaseModel):
+    case_text: str
+    question: str
+    history: Optional[List[dict]] = []
+
+@app.post("/patient/respond")
+async def patient_respond(request: PatientQueryRequest):
+    """
+    Roleplays as the patient based strictly on the case_text clinical vignette.
+    """
+    from groq import Groq
+    import os
+
+    api_key = os.getenv("GROQ_API_KEY")
+    if not api_key:
+        print("❌ [PATIENT ERROR]: GROQ_API_KEY is missing from environment variables!")
+        return {"response": "I'm having trouble thinking right now (API Key Missing)."}
+
+    client = Groq(api_key=api_key)
+
+    system_prompt = f"""You are a patient being interviewed by a medical student in an emergency setting.
+You only know what is described in your medical case details below.
+- Speak in first-person, layperson language (do NOT use advanced medical jargon unless explaining what a previous doctor told you).
+- Answer the student's question accurately based ON THIS CASE DATA ONLY:
+{request.case_text}
+- Keep your answer short (1-3 sentences maximum).
+- If the student asks about a symptom not mentioned in the case, say you don't think so or aren't sure."""
+
+    try:
+        response = client.chat.completions.create(
+            model="llama-3.3-70b-versatile",
+            messages=[
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": request.question}
+            ],
+            temperature=0.3,
+            max_tokens=200
+        )
+        reply = response.choices[0].message.content.strip()
+        return {"response": reply}
+
+    except Exception as e:
+        print(f"❌ [PATIENT API ERROR]: {type(e).__name__} -> {e}")
+        return {"response": "I'm feeling a bit overwhelmed and can't answer right now."}
+
 class InterjectionRequest(BaseModel):
     session_id: str
     interjection: str
@@ -52,16 +97,10 @@ def health_check():
 
 # ─────────────────────────────────────────
 # REST ENDPOINT — quick sync debate
-# For testing without WebSockets
 # ─────────────────────────────────────────
 
 @app.post("/debate")
 async def run_debate_sync(submission: CaseSubmission):
-    """
-    Runs a full debate synchronously.
-    Returns complete result when done.
-    Use /debate/stream for live streaming.
-    """
     from graph.debate_graph import run_debate
 
     session_id = str(uuid.uuid4())
@@ -86,28 +125,19 @@ async def run_debate_sync(submission: CaseSubmission):
 
 # ─────────────────────────────────────────
 # WEBSOCKET ENDPOINT — live streaming debate
-# This is the main endpoint for the frontend
 # ─────────────────────────────────────────
 
 @app.websocket("/debate/stream")
 async def debate_stream(websocket: WebSocket):
-    """
-    WebSocket endpoint for live debate streaming.
-    Frontend connects here to watch agents debate in real time.
-    
-    Message flow:
-    1. Frontend sends case submission as JSON
-    2. Backend streams each agent response as it's generated
-    3. Frontend displays agents typing one by one
-    """
     await websocket.accept()
+
+    session_id = str(uuid.uuid4())
 
     try:
         # Receive case submission from frontend
         data = await websocket.receive_text()
         submission_data = json.loads(data)
 
-        session_id = str(uuid.uuid4())
         case_text = submission_data.get("case_text", "")
         user_diagnosis = submission_data.get("user_diagnosis", "")
         severity_flag = submission_data.get("severity_flag")
@@ -127,7 +157,6 @@ async def debate_stream(websocket: WebSocket):
             "session_id": session_id
         }))
 
-    
         # ── STEP 1: TRIAGE ──
         await websocket.send_text(json.dumps({
             "type": "status",
@@ -163,65 +192,71 @@ async def debate_stream(websocket: WebSocket):
         # ── STEP 3: DEBATE ROUNDS ──
         debate_log = []
 
-        for round_num in range(1, 5):  # 4 rounds max
+        from agents.specialist_runner import run_specialist
+        from agents.skeptic import run_skeptic
+
+        EXCHANGES_PER_ROUND = 1
+        CALL_DELAY_SECONDS = 2.5
+
+        for round_num in range(1, 3):  # 2 rounds
             await websocket.send_text(json.dumps({
                 "type": "round_start",
                 "round": round_num
             }))
 
-            # Each specialist responds
-            for specialist_name in selected_specialists:
-                await websocket.send_text(json.dumps({
-                    "type": "agent_thinking",
-                    "agent": specialist_name,
-                    "round": round_num
-                }))
-
-                # Build context with debate so far
-                context = case_text
-                if debate_log:
-                    prior = "\n\n".join([
-                        f"{r['agent_name'].upper()} (Round {r['round_number']}):\n{r['response']}"
-                        for r in debate_log
-                    ])
-                    context = f"{case_text}\n\nDEBATE SO FAR:\n{prior}"
-
-                # Check for any pending interjections
-                if active_sessions[session_id]["interjections"]:
-                    interjection = active_sessions[session_id]["interjections"].pop(0)
-                    interjection_log.append(interjection)
-
-                    from agents.chair import run_chair_interjection
-                    chair_response = run_chair_interjection(
-                        case_text, debate_log, interjection
-                    )
-                    debate_log.append(chair_response)
-
+            for exchange_num in range(1, EXCHANGES_PER_ROUND + 1):
+                for specialist_name in selected_specialists:
                     await websocket.send_text(json.dumps({
-                        "type": "interjection_acknowledged",
-                        "agent": "chair",
-                        "response": chair_response["response"]
+                        "type": "agent_thinking",
+                        "agent": specialist_name,
+                        "round": round_num
                     }))
 
-                from agents.specialist_runner import run_specialist
-                response = run_specialist(specialist_name, context, round_num)
-                debate_log.append(response)
+                    # Check for any pending interjections
+                    if active_sessions[session_id]["interjections"]:
+                        interjection = active_sessions[session_id]["interjections"].pop(0)
+                        interjection_log.append(interjection)
 
-                # Stream this agent's response to frontend
-                await websocket.send_text(json.dumps({
-                    "type": "agent_response",
-                    "agent": specialist_name,
-                    "round": round_num,
-                    "response": response["response"],
-                    "confidence": response["confidence"],
-                    "api_used": response["api_used"]
-                }))
+                        from agents.chair import run_chair_interjection
+                        chair_response = run_chair_interjection(
+                            case_text, debate_log, interjection
+                        )
+                        debate_log.append(chair_response)
 
-            # Skeptic reviews the round — runs in background, not shown to frontend
-            from agents.skeptic import run_skeptic
-            skeptic_response = run_skeptic(case_text, debate_log)
-            debate_log.append(skeptic_response)
-            print(f"[SKEPTIC - HIDDEN] Round {round_num}: {skeptic_response['response']}")
+                        await websocket.send_text(json.dumps({
+                            "type": "interjection_acknowledged",
+                            "agent": "chair",
+                            "response": chair_response["response"]
+                        }))
+
+                    # FIXED: Pass debate_log directly to run_specialist
+                    response = run_specialist(
+                        specialist_name=specialist_name,
+                        case_text=case_text,
+                        debate_log=debate_log,
+                        round_number=round_num
+                    )
+                    debate_log.append(response)
+
+                    # Stream this agent's response to frontend
+                    await websocket.send_text(json.dumps({
+                        "type": "agent_response",
+                        "agent": specialist_name,
+                        "round": round_num,
+                        "exchange": exchange_num,
+                        "response": response["response"],
+                        "confidence": response["confidence"],
+                        "api_used": response["api_used"]
+                    }))
+
+                    await asyncio.sleep(CALL_DELAY_SECONDS)
+
+                    # Skeptic checks THIS individual opinion
+                    skeptic_response = run_skeptic(case_text, debate_log)
+                    debate_log.append(skeptic_response)
+                    print(f"[SKEPTIC - HIDDEN] Round {round_num}, checking {specialist_name}: {skeptic_response['response']}")
+
+                    await asyncio.sleep(CALL_DELAY_SECONDS)
 
             await websocket.send_text(json.dumps({
                 "type": "round_end",
@@ -244,6 +279,8 @@ async def debate_stream(websocket: WebSocket):
             "response": chair_result["response"]
         }))
 
+        await asyncio.sleep(0.5)
+
         # ── STEP 5: COMPARISON ──
         await websocket.send_text(json.dumps({
             "type": "status",
@@ -263,6 +300,8 @@ async def debate_stream(websocket: WebSocket):
             "type": "comparison",
             "response": comparison_result["response"]
         }))
+
+        await asyncio.sleep(0.5)
 
         # ── DONE ──
         await websocket.send_text(json.dumps({
@@ -287,15 +326,10 @@ async def debate_stream(websocket: WebSocket):
 
 # ─────────────────────────────────────────
 # INTERJECTION ENDPOINT
-# User sends this while debate is running
 # ─────────────────────────────────────────
 
 @app.post("/debate/interject")
 async def interject(request: InterjectionRequest):
-    """
-    User injects new information mid-debate.
-    The Chair will route it to relevant specialists.
-    """
     session_id = request.session_id
     if session_id not in active_sessions:
         return {"error": "Session not found or already complete"}
@@ -306,12 +340,10 @@ async def interject(request: InterjectionRequest):
 
 # ─────────────────────────────────────────
 # SPECIALIST LIST ENDPOINT
-# Frontend uses this to show manual selection
 # ─────────────────────────────────────────
 
 @app.get("/specialists")
 def get_specialists():
-    """Returns the full roster of available specialists."""
     from agents.specialists import SPECIALIST_DESCRIPTIONS
     return {
         "specialists": [
