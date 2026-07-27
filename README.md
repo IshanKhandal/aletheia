@@ -11,8 +11,8 @@
 
 ## 🚀 Live Deployments
 
-* **Frontend Web App:** [https://aletheia-bkxy.vercel.app](https://aletheia-bkxy.vercel.app)
-* **Backend API Service:** [https://aletheia-backend.onrender.com](https://aletheia-backend.onrender.com)
+* **Web App:** [https://aletheia-bkxy.vercel.app](https://aletheia-bkxy.vercel.app)
+
 
 ---
 
