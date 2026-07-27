@@ -1,3 +1,4 @@
+from db import get_similar_cases
 import asyncio
 import json
 import uuid
@@ -105,8 +106,12 @@ async def run_debate_sync(submission: CaseSubmission):
 
     session_id = str(uuid.uuid4())
 
+    # Retrieve matching past precedent from ChromaDB
+    precedents = get_similar_cases(submission.case_text, n_results=1)
+    augmented_case_text = f"{submission.case_text}\n\n[RELEVANT PAST CASE PRECEDENT FROM CHROMADB]:\n{precedents}"
+
     result = run_debate(
-        case_text=submission.case_text,
+        case_text=augmented_case_text,
         user_diagnosis=submission.user_diagnosis,
         severity_flag=submission.severity_flag,
         mode=submission.mode,
@@ -138,7 +143,7 @@ async def debate_stream(websocket: WebSocket):
         data = await websocket.receive_text()
         submission_data = json.loads(data)
 
-        case_text = submission_data.get("case_text", "")
+        raw_case_text = submission_data.get("case_text", "")
         user_diagnosis = submission_data.get("user_diagnosis", "")
         severity_flag = submission_data.get("severity_flag")
         mode = submission_data.get("mode", "doctor")
@@ -156,6 +161,15 @@ async def debate_stream(websocket: WebSocket):
             "type": "session_start",
             "session_id": session_id
         }))
+
+        # ── CHROMADB RAG LOOKUP ──
+        await websocket.send_text(json.dumps({
+            "type": "status",
+            "message": "Querying ChromaDB vector database for clinical precedents..."
+        }))
+
+        precedents = get_similar_cases(raw_case_text, n_results=1)
+        case_text = f"{raw_case_text}\n\n[HISTORICAL PRECEDENT RETRIEVED FROM CHROMADB]:\n{precedents}"
 
         # ── STEP 1: TRIAGE ──
         await websocket.send_text(json.dumps({
@@ -229,7 +243,6 @@ async def debate_stream(websocket: WebSocket):
                             "response": chair_response["response"]
                         }))
 
-                    # FIXED: Pass debate_log directly to run_specialist
                     response = run_specialist(
                         specialist_name=specialist_name,
                         case_text=case_text,
